@@ -35,7 +35,6 @@ data <- data %>%
 #Remove all rows where actual work in minutes is 0.
 #data <- data %>%
  # filter(ACTUAL_WORK_IN_MINUTES != 0)
-
 ```
 
 ```{r}
@@ -107,7 +106,6 @@ predicted_values <- predict(linear_model, newdata = testData)
 
 # View the first few predicted values
 head(predicted_values)
-
 ```
 
 ```{r}
@@ -170,7 +168,6 @@ svm_mae <- MAE(svm_predictions, testData$ACTUAL_WORK_IN_MINUTES)
 
 cat("SVM RMSE:", svm_rmse, "\n")
 cat("SVM MAE:", svm_mae, "\n")
-
 ```
 
 NN
@@ -196,9 +193,7 @@ nn_mae <- MAE(nn_predictions, testData$ACTUAL_WORK_IN_MINUTES)
 
 cat("Neural Network RMSE:", nn_rmse, "\n")
 cat("Neural Network MAE:", nn_mae, "\n")
-
 ```
-
 
 k-means
 ```{r}
@@ -220,6 +215,5 @@ trainData$cluster <- kmeans_model$cluster
 
 # Inspect cluster assignment
 table(trainData$cluster)
-
 ```
 

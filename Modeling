@@ -1,1 +1,225 @@
+---
+title: "Modeling"
+author: "Carson Hansen"
+date: "2024-10-30"
+output: html_document
+---
+
+```{r}
+#load packages
+library(tidyverse)
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(e1071)
+library(nnet)
+library(dplyr)
+library(factoextra)
+```
+
+```{r}
+# Load in the CSV files
+data <- read.csv(file = "IWC Swire Data.csv")
+```
+
+```{r}
+# Convert date data into date format and calculate the cost of maintenance
+data <- data %>% 
+   mutate(EXECUTION_START_DATE = as.Date(EXECUTION_START_DATE, format = "%m/%d/%y")) %>% 
+   mutate(EXECUTION_FINISH_DATE = as.Date(EXECUTION_FINISH_DATE, format = "%m/%d/%y")) %>% 
+   mutate(DATE_DIFF_START_FINISH = EXECUTION_FINISH_DATE - EXECUTION_START_DATE) %>%  
+   mutate(EQUIP_START_UP_DATE = as.Date(EQUIP_START_UP_DATE, format = "%m/%d/%y")) %>% 
+   mutate(EQUIP_VALID_FROM = as.Date(EQUIP_VALID_FROM, format = "%m/%d/%y")) %>%
+   mutate(COST_OF_MAINT_MIN = ACTUAL_WORK_IN_MINUTES * 19.03)
+
+#Remove all rows where actual work in minutes is 0.
+#data <- data %>%
+ # filter(ACTUAL_WORK_IN_MINUTES != 0)
+
+```
+
+```{r}
+# IMPORTANT: Replace `group_2_df` with the actual name of your data frame in R
+
+# Remove specific columns
+df_col_drop_lasso <- data %>%
+  select(-ORDER_ID, -PLANT_ID, -FUNCTIONAL_AREA_NODE_1_MODIFIED, 
+         -FUNCTIONAL_AREA_NODE_2_MODIFIED, -FUNCTIONAL_AREA_NODE_3_MODIFIED, 
+         -FUNCTIONAL_AREA_NODE_4_MODIFIED, -FUNCTIONAL_AREA_NODE_5_MODIFIED, 
+         -EQUIP_VALID_TO, -EXECUTION_START_DATE, -EXECUTION_FINISH_DATE, 
+         -EQUIP_START_UP_DATE, -EQUIP_VALID_FROM, -ACTUAL_START_TIME, 
+         -ACTUAL_FINISH_TIME)
+
+# Filter out rows with all NA values in specific columns
+df_filtered_lasso <- df_col_drop_lasso %>%
+  filter(!(is.na(ORDER_DESCRIPTION) & is.na(MAINTENANCE_PLAN) & is.na(MAINTENANCE_ITEM) &
+           is.na(MAINTENANCE_TYPE_DESCRIPTION) & is.na(FUNCTIONAL_LOC) & is.na(EQUIPMENT_ID)))
+
+# Calculate the percentage of missing values for each column
+na_percentage <- colSums(is.na(df_filtered_lasso)) / nrow(df_filtered_lasso)
+print(na_percentage)
+```
+
+```{r}
+# Remove rows with any NA values in df_filtered_lasso
+group_2_df_cleaned <- na.omit(df_filtered_lasso)
+
+# Verify that there are no NA values remaining in each column
+na_count <- colSums(is.na(group_2_df_cleaned))
+cat("Number of NA values in each column:\n")
+print(na_count)
+
+# Display the original and new dimensions of the data frame
+cat("Original shape:", dim(data)[1], "rows and", dim(data)[2], "columns\n")
+cat("Shape after dropping NAs:", dim(group_2_df_cleaned)[1], "rows and", dim(group_2_df_cleaned)[2], "columns\n")
+```
+
+
+```{r}
+# Set the seed for reproducibility
+set.seed(123)
+
+# Define the partitioning using stratified sampling on the target variable
+trainIndex <- createDataPartition(data$MAINTENANCE_ACTIVITY_TYPE, p = 0.8, list = FALSE)
+
+# Create training and test sets
+trainData <- data[trainIndex, ]
+testData <- data[-trainIndex, ]
+
+# Check the distribution to ensure stratification worked
+table(trainData$MAINTENANCE_ACTIVITY_TYPE)
+table(testData$MAINTENANCE_ACTIVITY_TYPE)
+
+#Probability of distribution of target variable
+# Train
+755294/(83567 + 755294)
+# Test
+188823/(20891+188823)
+```
+
+```{r}
+# Create a linear regression
+linear_model <- lm(ACTUAL_WORK_IN_MINUTES ~ EQUIP_CAT_DESC + PRODUCTION_LOCATION + MAINTENANCE_TYPE_DESCRIPTION + MAINTENANCE_ACTIVITY_TYPE + FUNCTIONAL_LOC, data = trainData)
+summary(linear_model)
+
+# Make predictions on a new dataset or on the training set
+predicted_values <- predict(linear_model, newdata = testData)
+
+# View the first few predicted values
+head(predicted_values)
+
+```
+
+```{r}
+# Calculate Mean Absolute Error (MAE)
+mae <- mean(abs(predicted_values - testData$ACTUAL_WORK_IN_MINUTES))
+
+# Calculate Mean Squared Error (MSE)
+mse <- mean((predicted_values - testData$ACTUAL_WORK_IN_MINUTES)^2)
+
+# Calculate Root Mean Squared Error (RMSE)
+rmse <- sqrt(mse)
+
+# Print the accuracy metrics
+cat("Mean Absolute Error (MAE):", mae, "\n")
+cat("Mean Squared Error (MSE):", mse, "\n")
+cat("Root Mean Squared Error (RMSE):", rmse, "\n")
+
+
+# Mean Absolute Percentage Error (MAPE)
+mape <- mean(abs((testData$ACTUAL_WORK_IN_MINUTES - predicted_values) / testData$ACTUAL_WORK_IN_MINUTES)) * 100
+
+# R-squared and Adjusted R-squared
+r_squared <- summary(linear_model)$r.squared
+adjusted_r_squared <- summary(linear_model)$adj.r.squared
+
+# Print the additional metrics
+cat("Mean Absolute Percentage Error (MAPE):", mape, "%\n")
+cat("R-squared:", r_squared, "\n")
+cat("Adjusted R-squared:", adjusted_r_squared, "\n")
+```
+Supervised Models
+```{r}
+# Random Forest Model
+set.seed(123)
+rf_model <- randomForest(ACTUAL_WORK_IN_MINUTES ~ MAINTENANCE_ACTIVITY_TYPE + PRODUCTION_LOCATION + EQUIPMENT_DESC, data = trainData, ntree = 15, nodesize = 5)
+rf_model
+plot(rf_model)
+
+# Make predictions on testData
+rf_predictions <- predict(rf_model, newdata = testData)
+# Calculate accuracy metrics
+rf_rmse <- RMSE(rf_predictions, testData$ACTUAL_WORK_IN_MINUTES)
+rf_mae <- MAE(rf_predictions, testData$ACTUAL_WORK_IN_MINUTES)
+
+cat("Random Forest RMSE:", rf_rmse, "\n")
+cat("Random Forest MAE:", rf_mae, "\n")
+```
+
+SVM
+```{r}
+# SVM Model
+svm_model <- svm(ACTUAL_WORK_IN_MINUTES ~ ., data = trainData)
+
+# Make predictions on testData
+svm_predictions <- predict(svm_model, newdata = testData)
+
+# Calculate accuracy metrics
+svm_rmse <- RMSE(svm_predictions, testData$ACTUAL_WORK_IN_MINUTES)
+svm_mae <- MAE(svm_predictions, testData$ACTUAL_WORK_IN_MINUTES)
+
+cat("SVM RMSE:", svm_rmse, "\n")
+cat("SVM MAE:", svm_mae, "\n")
+
+```
+
+NN
+```{r}
+# Neural Network Model
+# Scaling the data as neural networks perform better with scaled data
+train_scaled <- scale(trainData %>% select(-ACTUAL_WORK_IN_MINUTES))
+test_scaled <- scale(testData %>% select(-ACTUAL_WORK_IN_MINUTES), center = attr(train_scaled, "scaled:center"), scale = attr(train_scaled, "scaled:scale"))
+
+# Include the target variable in scaled training and testing data
+train_scaled <- cbind(ACTUAL_WORK_IN_MINUTES = trainData$ACTUAL_WORK_IN_MINUTES, train_scaled)
+test_scaled <- cbind(ACTUAL_WORK_IN_MINUTES = testData$ACTUAL_WORK_IN_MINUTES, test_scaled)
+
+# Fit the neural network model
+nn_model <- nnet(ACTUAL_WORK_IN_MINUTES ~ ., data = train_scaled, size = 5, linout = TRUE, maxit = 100)
+
+# Make predictions on testData
+nn_predictions <- predict(nn_model, newdata = test_scaled)
+
+# Calculate accuracy metrics
+nn_rmse <- RMSE(nn_predictions, testData$ACTUAL_WORK_IN_MINUTES)
+nn_mae <- MAE(nn_predictions, testData$ACTUAL_WORK_IN_MINUTES)
+
+cat("Neural Network RMSE:", nn_rmse, "\n")
+cat("Neural Network MAE:", nn_mae, "\n")
+
+```
+
+
+k-means
+```{r}
+# Prepare data for clustering (excluding target variable)
+clustering_data <- trainData %>% select(-ACTUAL_WORK_IN_MINUTES)
+
+# Perform K-means clustering (choose k = 3, can adjust based on domain knowledge)
+set.seed(123)
+kmeans_model <- kmeans(clustering_data, centers = 3, nstart = 25)
+
+# Visualize the clusters
+fviz_cluster(kmeans_model, data = clustering_data)
+
+# Print cluster centers
+print(kmeans_model$centers)
+
+# Assign cluster labels to the original data
+trainData$cluster <- kmeans_model$cluster
+
+# Inspect cluster assignment
+table(trainData$cluster)
+
+```
 

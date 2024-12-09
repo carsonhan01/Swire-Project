@@ -1,1 +1,217 @@
+---
+title: "Swire Coca-Cola Project EDA"
+author: "Carson Hansen"
+date: "2024-10-06"
+output: 
+  html_document:
+    number_sections: yes
+    toc: yes
+editor_options: 
+  chunk_output_type: inline
+execute:
+  warning: false
+  message: false
+---
+
+# Data Prep
+## Load packages
+```{r, warning=FALSE, message=FALSE}
+#load packages
+library(tidyverse)
+library(ggplot2)
+```
+
+
+#ERD Overview
+```{r}
+# Cost of Downtime Per Minute
+((60000000/365)/6)/24/60
+```
+
+## Load files
+```{r}
+# Load in the CSV files
+data <- read.csv(file = "IWC Swire Data.csv")
+```
+
+
+## Data Manipulation
+```{r}
+#Convert date data into date format and calculate the cost of maintenance
+data <- data %>% 
+   mutate(EXECUTION_START_DATE = as.Date(EXECUTION_START_DATE, format = "%m/%d/%y")) %>% 
+   mutate(EXECUTION_FINISH_DATE = as.Date(EXECUTION_FINISH_DATE, format = "%m/%d/%y")) %>% 
+  mutate(DATE_DIFF_START_FINISH = EXECUTION_FINISH_DATE - EXECUTION_START_DATE) %>%  
+  mutate(EQUIP_START_UP_DATE = as.Date(EQUIP_START_UP_DATE, format = "%m/%d/%y")) %>% 
+  mutate(EQUIP_VALID_FROM = as.Date(EQUIP_VALID_FROM, format = "%m/%d/%y")) %>%
+  mutate(EQUIP_VALID_TO = as.Date(EQUIP_VALID_TO, format = "%m/%d/%y")) %>%
+  mutate(MACHINE_AGE_DAYS = EQUIP_VALID_TO - EQUIP_VALID_FROM) %>% 
+  mutate(COST_OF_MAINT_MIN = ACTUAL_WORK_IN_MINUTES * 19.03)
+```
+
+## Data Summary
+```{r}
+#Data Summary
+summary(data)
+
+#Count of NA Values
+data_summary <- data %>%
+  summarise(across(everything(), ~ sum(is.na(.) | . == "")))
+# Review Summary of NA
+data_summary
+
+#Only show columns with numbers
+data_summary %>%
+  select(where(~ any(. != 0 & !is.na(.))))
+```
+
+# Introduction
+Swire Coca-Cola produces and packages bottled coke productions and then distributes them through the western United States. During production malfunctions and maintenance on various machines takes place. Some maintenance is planned, some is un planned.The data set provided contains a variety of inform about this maintenance. Accurately predicting when a piece of machinery will break will better enable the Swire team to plan and maintain the machines with greater efficiency. Swire estimates that there is a loss of roughly $60,000,000 per year in production downtime.
+
+The purpose of this notebook is to explore this dataset and find correlations to assist with predicting when machines will faile. Questions we will look to answer will be, "What products fail most often?", "How often do products fail?","What is the average live span of machines parts?", "What patterns do we find in products that whwere not expected to break?", "What facilities have the highest rate of unplanned part failutes?", and more.
+
+# Data Description
+The data set contains 1,048,575 rows of data with 25 variables/columns. Most variables are strings or categorical. Some data are IDs like, ORDER_ID, PLANT_ID, and EQUIPMENT_ID. Some data is numerical, like Actual_WORK_IN_MINUTES. 5 columns contain date data EXECUTION_START_TIME, EXECUTION_FINISH_TIME, EQUIP_START_UP_DATE, QUIP_VALID_FROM, AND EQUIP_VALID_TO. Additional columns will be added of calculations for dates, times, and cost.
+
+# Missing Data
+Some variables are conditional on other values. For example, the MAINTENANCE_ACTIVITY_TYPE tracks if a maintenance was planned or unplanned. If it is planned columns like MAINTINANCE_PLAN and MAINTENANCE_ITEM. Meaning, certain columns will have larger NA or blank values. Values for each column of missing data can be found in the above table.
+
+
+# Data Exploration and Visualization
+
+## Summary Statistics
+```{r}
+#Create summary statistics of minutes worked by location and activity type.
+data_stats <- data %>% group_by(PRODUCTION_LOCATION, MAINTENANCE_ACTIVITY_TYPE) %>% summarize(count = n(), prct_obs = ((n() / 1048575)*100) , avg_time = mean(ACTUAL_WORK_IN_MINUTES), st_dev = sd(ACTUAL_WORK_IN_MINUTES), min = min(ACTUAL_WORK_IN_MINUTES), max = max(ACTUAL_WORK_IN_MINUTES))
+data_stats
+```
+## Cost of Maintinance
+```{r}
+#Average revenue lost of production downtime per hour/Minute per plant
+# 60000000 lost revenue from production lost per year
+# 365 days per year
+# 6 facilities
+# 24 hours per day
+# Cost per hour per facility
+(((60000000/365)/6)/24)
+
+# Per Minute
+(((60000000/365)/6)/24)/60
+```
+With roughly 60,000,000 lost per year in production losses due to maintenance, we can see that the average cost per hour per production facility, when the lines are not in production is roughly 1,141.55 per hour and 19.03 per minute. Therefore, time spent on machines not being utilized is extremely costly.
+
+```{r}
+#Average Time to fix by maintenance type
+data %>% group_by(MAINTENANCE_ACTIVITY_TYPE) %>%  summarise(avg = mean(ACTUAL_WORK_IN_MINUTES))
+
+```
+
+
+```{r}
+data %>% group_by(MAINTENANCE_ACTIVITY_TYPE) %>% summarize(n = n(), prct = (n()/1048575))
+
+# Distribution of observations by facility by maintinance type
+data %>% ggplot(aes(x = MAINTENANCE_ACTIVITY_TYPE, fill = MAINTENANCE_ACTIVITY_TYPE)) + 
+  geom_bar(position = "dodge") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Number of Observations") + 
+  xlab("Location") + 
+  labs(fill = 'Maintenance Type')
+```
+We can see this data set is skewed towards more data in unplanned. Meaning about 9% of the data is planned maintinace and the remainder is unplanned.
+
+```{r}
+# Distribution of observations by facility by maintenance type
+data_stats %>% ggplot(aes(x = PRODUCTION_LOCATION, y = prct_obs, fill = MAINTENANCE_ACTIVITY_TYPE)) + 
+  geom_col(position = "dodge") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Percent of Observations") + 
+  xlab("Location") + 
+  labs(fill = 'Maintenance Type')
+```
+We see that there is a large skew of observations to the Silverstone and Suzuka plants. Just with Silverstone unplanned it is 42.62% of all records. Suzuka unplanned maintenance is also high with 19.22 records. These two combined contain almost 2 out of every 3 rows in the data. 
+
+## Bar Plot 1
+```{r}
+# Create a table of the data
+data2 <- data %>% group_by(PRODUCTION_LOCATION, MAINTENANCE_ACTIVITY_TYPE) %>% summarize(count = n(), avg_time = mean(ACTUAL_WORK_IN_MINUTES))
+
+# Breakdown of average time to fix by location by type
+data2 %>% ggplot(mapping = aes(x = PRODUCTION_LOCATION, y = avg_time, fill = MAINTENANCE_ACTIVITY_TYPE)) + 
+  geom_col(position = "dodge") +
+  labs(fill = 'Maintenance Type') +
+  xlab('Location') + 
+  ylab('Avg Time to Fix') + 
+  labs(color = 'Maintenance Type')
+
+```
+We can see that there is a large disparity between the average fix time by maintenance type at the Monza, Silverstone, and Suzuka plants. Cota, Monaco, and Roma have closer times. Cota, is also the only location where the average fix time for unplanned maintenance is quicker than planned.
+
+## Bar Plot 2
+```{r}
+# Create a Table
+data1 <- data %>% group_by(FUNCTIONAL_AREA_NODE_1_MODIFIED, MAINTENANCE_ACTIVITY_TYPE) %>% summarize(count = n(), avg_time = mean(ACTUAL_WORK_IN_MINUTES))
+data1
+
+# Breakdown of average time to fix by location by type
+data1 %>% ggplot(mapping = aes(x = FUNCTIONAL_AREA_NODE_1_MODIFIED, y = avg_time, fill = MAINTENANCE_ACTIVITY_TYPE)) +
+  geom_col(position = "dodge") +
+  labs(fill = 'Maintenance Type') +
+  xlab('Area Node 1') + 
+  ylab('Avg Time to Fix') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+```
+When looking at the area of maintenance, we see that Cooler Service has on average a high time to fix. However, there is only one observation indicating low occurrence. Monza Production has a high unplanned fix time with almost 6,000 occurrences. Everything fleet related was unplanned.
+
+## Bar Plot 3
+```{r}
+# Create a Table
+data3 <- data %>% group_by(FUNCTIONAL_AREA_NODE_5_MODIFIED, MAINTENANCE_ACTIVITY_TYPE) %>% summarize(count = n(), avg_time = mean(ACTUAL_WORK_IN_MINUTES))
+data3
+
+# Breakdown of average time to fix Area Node 5 by type
+data3 %>% ggplot(mapping = aes(x = reorder(FUNCTIONAL_AREA_NODE_5_MODIFIED, +avg_time), y = avg_time, fill = MAINTENANCE_ACTIVITY_TYPE)) +
+  geom_col(position = "Dodge") +
+  labs(fill = 'Maintenance Type') +
+  coord_flip() +
+  xlab('Area Node 5') + 
+  ylab('Avg Time to Fix') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+## Bar Plot 4
+```{r}
+# Create a Table
+data4 <- data %>% group_by(EQUIP_CAT_DESC, MAINTENANCE_ACTIVITY_TYPE) %>% summarize(count = n(), avg_time = mean(ACTUAL_WORK_IN_MINUTES))
+data4
+
+# Breakdown of average time to fix Equipment Type by Maintinance Type
+data4 %>% ggplot(mapping = aes(x = EQUIP_CAT_DESC, y = avg_time, fill = MAINTENANCE_ACTIVITY_TYPE)) + 
+  geom_col(position = "dodge") +
+  labs(fill = 'Maintenance Type') +
+  xlab('Equipment Type Description') + 
+  ylab('Avg Time to Fix') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+As anticipated, most equipment, when planned are quicker to fix. However, production resources/tools is the outlier where planned takes longer to fix, and unplanned is significantly quicker (about 3 hours quicker to fix). Also, roughly 90% of the data is in the blank value column. Meaning most rows dont have this filled in.
+
+## Histogram 1
+
+```{r}
+#Histogram of production location by work in minutes by maintanence type
+data %>% ggplot(aes(x = PRODUCTION_LOCATION, y = ACTUAL_WORK_IN_MINUTES, color = MAINTENANCE_ACTIVITY_TYPE)) + 
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  xlab('Location') + 
+  ylab('Time to Fix') + 
+  labs(color = 'Maintenance Type')
+
+
+```
+This chart illustrates a large disparity across fix times. Monza and Silverstone have a extreme outliers that affect the scale and chart. Cota, Monaco, Roma, and Suzuka appear to have more centralized observation values for actual work time in minutes.
 

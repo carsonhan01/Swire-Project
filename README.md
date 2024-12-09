@@ -33,5 +33,5 @@ Anticipated Outcomes
 3. Enhanced production planning and capacity utilization.
 4. Estimated cost savings of $X million annually.
 
- The information found in this repository are my code and work for EDA (exploratory data analysis) and modeling. Additional detials about my team's work and presentation can be found at the link below.
+ The information found in this repository are my code and work for EDA (exploratory data analysis) and modeling. My code was writtin in R and then translated into Python for the group portions of the project. Additional detials about my team's work and presentation can be found at the link below.
  https://github.com/NickSarka2000/MSBA-Capstone-Fall-2024

@@ -1,15 +1,9 @@
 # Swire-Project
-The documents and code for the Swire Coca-Cola project during my MSBA capstone.
-
-Here’s how we can summarize and integrate this detailed use case into your README file for your MSBA Capstone Project repository:
-
-MSBA Capstone Project - University of Utah (Fall 2024)
-
-Use Case: Predictive Maintenance for Swire Coca-Cola
+Predictive Maintenance for Swire Coca-Cola
 
 Project Overview
 
-Swire Coca-Cola faces significant annual losses (~$60M) due to unplanned machine downtimes across its production facilities. These downtimes impact the company’s ability to fulfill customer orders, currently meeting only 94.4% of demand. The goal of this project is to develop a Predictive Maintenance Pipeline that uses downtime and repair data to minimize these losses, improve machine reliability, and optimize production capacity.
+Swire Coca-Cola faces significant annual losses due to unplanned machine downtimes across its production facilities. These downtimes impact the company’s ability to fulfill customer orders, currently meeting only 94.4% of demand. The goal of this project is to develop a Predictive Maintenance Pipeline that uses downtime and repair data to minimize these losses, improve machine reliability, and optimize production capacity.
 
 Objectives
 
